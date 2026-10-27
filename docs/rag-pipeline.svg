@@ -1,0 +1,228 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1680" height="1512" viewBox="0 0 1680 1512" role="img" aria-labelledby="pipeline-title pipeline-desc">
+  <title id="pipeline-title">YouTube RAG chatbot: the complete pipeline</title>
+  <desc id="pipeline-desc">Based on app.py and rag.py. Process Video extracts a video ID, fetches caption text, splits it into chunks of up to 1,000 characters with a target overlap of 200 characters, embeds the chunks with OpenAI text-embedding-3-small, and builds an in-memory FAISS vector index and text store retained by the Streamlit session. Ask Question embeds the query with the same model, retrieves up to four similar chunks, and joins their text. RunnableParallel combines this context with the original question passed through RunnablePassthrough. A transcript-grounded PromptTemplate is sent to gpt-4o-mini at temperature 0.2. StrOutputParser converts the model response to a string displayed in Streamlit. The app does not persist the index to disk.</desc>
+  <defs>
+    <style>
+      text { font-family: 'Segoe UI', Arial, sans-serif; fill: #17324d; }
+      .title { font-size: 46px; font-weight: 700; letter-spacing: -1.3px; }
+      .subtitle { font-size: 22px; fill: #526a80; }
+      .section { font-size: 28px; font-weight: 650; }
+      .node-title { font-size: 23px; font-weight: 650; letter-spacing: -.3px; }
+      .body { font-size: 20px; fill: #526a80; }
+      .detail { font-size: 18px; fill: #526a80; }
+      .code { font-family: Consolas, 'Courier New', monospace; font-size: 16px; fill: #38526a; }
+      .model { font-family: Consolas, 'Courier New', monospace; font-size: 17px; fill: #17324d; }
+      .small { font-size: 17px; fill: #526a80; }
+      .label { font-size: 19px; font-weight: 600; }
+      .card { fill: #fff; stroke: #cbd8e4; stroke-width: 1.5; }
+      .code-bg { fill: #f0f4f8; }
+      .index-flow { fill: none; stroke: #2c63bb; stroke-width: 3; stroke-linejoin: round; marker-end: url(#arrow-blue); }
+      .query-flow { fill: none; stroke: #087d77; stroke-width: 3; stroke-linejoin: round; marker-end: url(#arrow-teal); }
+      .answer-flow { fill: none; stroke: #7551a8; stroke-width: 3; stroke-linejoin: round; marker-end: url(#arrow-purple); }
+      .icon { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+    </style>
+    <marker id="arrow-blue" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto" markerUnits="userSpaceOnUse"><path d="M0 0 9 4.5 0 9Z" fill="#2c63bb"/></marker>
+    <marker id="arrow-teal" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto" markerUnits="userSpaceOnUse"><path d="M0 0 9 4.5 0 9Z" fill="#087d77"/></marker>
+    <marker id="arrow-purple" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto" markerUnits="userSpaceOnUse"><path d="M0 0 9 4.5 0 9Z" fill="#7551a8"/></marker>
+    <symbol id="video" viewBox="0 0 32 32"><rect x="3" y="6" width="26" height="20" rx="5"/><path d="m13 11 8 5-8 5Z"/></symbol>
+    <symbol id="captions" viewBox="0 0 32 32"><path d="M6 3h14l6 6v20H6Z"/><path d="M20 3v7h6M10 15h12M10 20h12M10 25h8"/></symbol>
+    <symbol id="chunks" viewBox="0 0 32 32"><rect x="4" y="3" width="24" height="10" rx="2"/><rect x="4" y="19" width="24" height="10" rx="2"/><path d="M10 8h12M10 24h12M16 13v6"/></symbol>
+    <symbol id="vectors" viewBox="0 0 32 32"><circle cx="7" cy="7" r="3"/><circle cx="25" cy="9" r="3"/><circle cx="12" cy="25" r="3"/><path d="m10 7 12 2M8 10l3 12m12-10-9 11"/></symbol>
+    <symbol id="question" viewBox="0 0 32 32"><path d="M5 4h22v20H13l-8 5Z"/><path d="M12 11a4 4 0 0 1 8 0c0 3-4 3-4 6m0 3v.2"/></symbol>
+    <symbol id="search" viewBox="0 0 32 32"><circle cx="13" cy="13" r="9"/><path d="m20 20 9 9M9 13h8m-4-4v8"/></symbol>
+    <symbol id="context" viewBox="0 0 32 32"><path d="M5 5h22M5 11h16M5 21h22M5 27h16M9 16h14"/></symbol>
+    <symbol id="prompt" viewBox="0 0 32 32"><path d="M11 4H6v24h5M21 4h5v24h-5M12 11h8M12 16h8M12 21h5"/></symbol>
+    <symbol id="model-icon" viewBox="0 0 32 32"><rect x="7" y="7" width="18" height="18" rx="3"/><path d="M12 12h8v8h-8ZM11 2v5m10-5v5m-10 18v5m10-5v5M2 11h5m-5 10h5m18-10h5m-5 10h5"/></symbol>
+    <symbol id="parser" viewBox="0 0 32 32"><path d="M5 5h10M5 11h7M5 21h10M5 27h7m7-16 7 5-7 5M15 16h11"/></symbol>
+    <symbol id="answer" viewBox="0 0 32 32"><path d="M4 4h24v20H14l-7 5v-5H4Z"/><path d="m10 14 4 4 8-9"/></symbol>
+  </defs>
+
+  <!-- A fixed background preserves contrast on light and dark host pages. -->
+  <rect width="1680" height="1512" rx="24" fill="#f5f8fc"/>
+  <rect x="64" y="61" width="46" height="34" rx="10" fill="#d93643"/>
+  <path d="m82 70 15 8-15 8Z" fill="#fff"/>
+  <text x="126" y="96" class="title">YouTube RAG pipeline</text>
+  <text x="64" y="141" class="subtitle">One video becomes searchable context. Each question retrieves evidence before the model answers.</text>
+  <g class="small">
+    <circle cx="1165" cy="81" r="5" fill="#2c63bb"/><text x="1179" y="87">Indexing</text>
+    <circle cx="1314" cy="81" r="5" fill="#087d77"/><text x="1328" y="87">Retrieval</text>
+    <circle cx="1462" cy="81" r="5" fill="#7551a8"/><text x="1476" y="87">Generation</text>
+  </g>
+
+  <!-- 1. Video ingestion and document indexing -->
+  <circle cx="80" cy="209" r="16" fill="#2c63bb"/><text x="80" y="216" text-anchor="middle" style="font-size:20px;fill:#fff;font-weight:700">1</text>
+  <text x="110" y="218" class="section">Build the video index</text>
+  <text x="1616" y="216" text-anchor="end" class="label" style="fill:#2c63bb">On “Process Video”</text>
+  <path d="M64 238H1616" stroke="#d4e0ed" stroke-width="1.5"/>
+
+  <g transform="translate(64 265)">
+    <rect class="card" width="288" height="230" rx="14"/>
+    <use href="#video" x="24" y="22" width="32" height="32" class="icon" color="#2c63bb"/>
+    <text x="24" y="91" class="node-title">Enter a video URL</text>
+    <text x="24" y="127" class="body">Streamlit text input</text>
+    <text x="24" y="158" class="body">Extract the video ID</text>
+    <rect x="16" y="184" width="256" height="31" rx="6" class="code-bg"/>
+    <text x="28" y="205" class="code">extract_video_id()</text>
+  </g>
+  <path d="M355 380H377" class="index-flow"/>
+  <g transform="translate(380 265)">
+    <rect class="card" width="288" height="230" rx="14"/>
+    <use href="#captions" x="24" y="22" width="32" height="32" class="icon" color="#2c63bb"/>
+    <text x="24" y="91" class="node-title">Fetch the transcript</text>
+    <text x="24" y="127" class="body">Read caption segments</text>
+    <text x="24" y="158" class="body">Join text with spaces</text>
+    <rect x="16" y="184" width="256" height="31" rx="6" class="code-bg"/>
+    <text x="28" y="205" class="code">YouTubeTranscriptApi</text>
+  </g>
+  <path d="M671 380H693" class="index-flow"/>
+  <g transform="translate(696 265)">
+    <rect class="card" width="288" height="230" rx="14"/>
+    <use href="#chunks" x="24" y="22" width="32" height="32" class="icon" color="#2c63bb"/>
+    <text x="24" y="91" class="node-title">Split into chunks</text>
+    <text x="24" y="127" class="body">Up to 1,000 characters</text>
+    <text x="24" y="158" class="body">Target overlap: 200 chars</text>
+    <rect x="16" y="184" width="256" height="31" rx="6" class="code-bg"/>
+    <text x="28" y="205" class="code">Recursive text splitter</text>
+  </g>
+  <path d="M987 380H1009" class="index-flow"/>
+  <g transform="translate(1012 265)">
+    <rect class="card" width="288" height="230" rx="14"/>
+    <use href="#vectors" x="24" y="22" width="32" height="32" class="icon" color="#2c63bb"/>
+    <text x="24" y="91" class="node-title">Embed each chunk</text>
+    <text x="24" y="127" class="body">OpenAI embeddings</text>
+    <text x="24" y="158" class="model">text-embedding-3-small</text>
+    <rect x="16" y="184" width="256" height="31" rx="6" class="code-bg"/>
+    <text x="28" y="205" class="code">OpenAIEmbeddings</text>
+  </g>
+  <path d="M1303 380H1325" class="index-flow"/>
+  <g transform="translate(1328 265)">
+    <path d="M0 23C0-7 288-7 288 23V207C288 237 0 237 0 207Z" fill="#e7effb" stroke="#2c63bb" stroke-width="1.5"/>
+    <ellipse cx="144" cy="23" rx="144" ry="23" fill="#d7e5fa" stroke="#2c63bb" stroke-width="1.5"/>
+    <text x="24" y="91" class="node-title">FAISS vector store</text>
+    <text x="24" y="127" class="body">Chunk vectors + IDs</text>
+    <text x="24" y="158" class="body">Original chunk text</text>
+    <text x="24" y="203" class="code">FAISS.from_documents()</text>
+  </g>
+
+  <!-- The database is retained by the session's chain, rather than persisted. -->
+  <rect x="64" y="535" width="870" height="112" rx="12" fill="#eaf0f8"/>
+  <text x="88" y="569" class="label">One index per processed video, held in memory</text>
+  <text x="88" y="600" class="body">The retriever and store stay attached to st.session_state.chain.</text>
+  <text x="88" y="628" class="detail">Processing another video builds a new index and replaces the session’s chain.</text>
+  <text x="1012" y="568" class="label">The app’s database layer</text>
+  <text x="1012" y="600" class="body">Local FAISS index + in-memory text store.</text>
+  <text x="1012" y="630" class="detail">No disk save or hosted database is configured.</text>
+  <path d="M1472 495V674H840V787" class="index-flow"/>
+  <rect x="1027" y="658" width="321" height="31" rx="5" fill="#f5f8fc"/>
+  <text x="1187" y="680" text-anchor="middle" class="label" style="fill:#2c63bb">Search the stored vectors</text>
+
+  <!-- 2. Parallel context retrieval and original-question passthrough -->
+  <circle cx="80" cy="714" r="16" fill="#087d77"/><text x="80" y="721" text-anchor="middle" style="font-size:20px;fill:#fff;font-weight:700">2</text>
+  <text x="110" y="723" class="section">Retrieve context for the question</text>
+  <text x="1616" y="721" text-anchor="end" class="label" style="fill:#087d77">On “Ask Question”</text>
+  <path d="M64 743H1616" stroke="#d4e0ed" stroke-width="1.5"/>
+  <rect x="368" y="778" width="944" height="264" rx="20" fill="#ebf6f3" stroke="#8fc7bf" stroke-dasharray="5 5"/>
+  <rect x="391" y="761" width="325" height="28" rx="5" fill="#f5f8fc"/>
+  <text x="405" y="782" class="small" style="fill:#087d77">Context branch · RunnableParallel</text>
+
+  <g transform="translate(64 790)">
+    <rect class="card" width="288" height="240" rx="14"/>
+    <use href="#question" x="24" y="22" width="32" height="32" class="icon" color="#087d77"/>
+    <text x="24" y="91" class="node-title">Ask a question</text>
+    <text x="24" y="127" class="body">User’s question string</text>
+    <text x="24" y="158" class="body">Invoke the saved chain</text>
+    <rect x="16" y="194" width="256" height="31" rx="6" class="code-bg"/>
+    <text x="28" y="215" class="code">chain.invoke(question)</text>
+  </g>
+  <path d="M355 910H377" class="query-flow"/>
+  <g transform="translate(380 790)">
+    <rect class="card" width="288" height="240" rx="14"/>
+    <use href="#vectors" x="24" y="22" width="32" height="32" class="icon" color="#087d77"/>
+    <text x="24" y="91" class="node-title">Embed the question</text>
+    <text x="24" y="127" class="body">Same embedding model</text>
+    <text x="24" y="158" class="model">text-embedding-3-small</text>
+    <rect x="16" y="194" width="256" height="31" rx="6" class="code-bg"/>
+    <text x="28" y="215" class="code">Query → vector</text>
+  </g>
+  <path d="M671 910H693" class="query-flow"/>
+  <g transform="translate(696 790)">
+    <rect class="card" width="288" height="240" rx="14"/>
+    <use href="#search" x="24" y="22" width="32" height="32" class="icon" color="#087d77"/>
+    <text x="24" y="91" class="node-title">Find similar chunks</text>
+    <text x="24" y="127" class="body">FAISS similarity search</text>
+    <text x="24" y="158" class="body">Up to 4 nearest chunks</text>
+    <rect x="16" y="194" width="256" height="31" rx="6" class="code-bg"/>
+    <text x="28" y="215" class="code">similarity · k = 4</text>
+  </g>
+  <path d="M987 910H1009" class="query-flow"/>
+  <g transform="translate(1012 790)">
+    <rect class="card" width="288" height="240" rx="14"/>
+    <use href="#context" x="24" y="22" width="32" height="32" class="icon" color="#087d77"/>
+    <text x="24" y="91" class="node-title">Build the context</text>
+    <text x="24" y="127" class="body">Join retrieved chunk text</text>
+    <text x="24" y="158" class="body">Separate with blank lines</text>
+    <rect x="16" y="194" width="256" height="31" rx="6" class="code-bg"/>
+    <text x="28" y="215" class="code">format_docs() · Lambda</text>
+  </g>
+  <path d="M1303 910H1325" class="query-flow"/>
+  <g transform="translate(1328 790)">
+    <rect class="card" width="288" height="240" rx="14"/>
+    <use href="#prompt" x="24" y="22" width="32" height="32" class="icon" color="#087d77"/>
+    <text x="24" y="91" class="node-title">Compose the prompt</text>
+    <text x="24" y="127" class="model">{context} + {question}</text>
+    <text x="24" y="158" class="body">Add grounding instructions</text>
+    <rect x="16" y="194" width="256" height="31" rx="6" class="code-bg"/>
+    <text x="28" y="215" class="code">PromptTemplate</text>
+  </g>
+  <path d="M208 1030V1090H1400V1033" class="query-flow"/>
+  <circle cx="208" cy="1030" r="5" fill="#087d77"/>
+  <rect x="451" y="1073" width="655" height="33" rx="5" fill="#f5f8fc"/>
+  <text x="778" y="1096" text-anchor="middle" class="label" style="fill:#087d77">Question branch · RunnablePassthrough · original question</text>
+  <path d="M1530 1030V1212" class="answer-flow"/>
+  <text x="1550" y="1137" class="small" style="fill:#7551a8">Filled</text>
+  <text x="1550" y="1162" class="small" style="fill:#7551a8">prompt</text>
+
+  <!-- 3. The flow continues downward and then right to left to the displayed answer. -->
+  <circle cx="80" cy="1170" r="16" fill="#7551a8"/><text x="80" y="1177" text-anchor="middle" style="font-size:20px;fill:#fff;font-weight:700">3</text>
+  <text x="110" y="1179" class="section">Generate the answer</text>
+  <path d="M64 1194H1470" stroke="#d4e0ed" stroke-width="1.5"/>
+  <rect x="64" y="1215" width="564" height="220" rx="14" fill="#eeeaf5"/>
+  <text x="88" y="1251" class="label" style="fill:#65428e">The prompt’s grounding rule</text>
+  <text x="88" y="1291" style="font-size:25px;font-weight:600">Answer only from transcript context.</text>
+  <text x="88" y="1326" class="body">If the context is insufficient, say “I don’t know.”</text>
+  <text x="88" y="1370" class="detail">This is an instruction to the model;</text>
+  <text x="88" y="1397" class="detail">the app has no separate answer-validation step.</text>
+
+  <g transform="translate(1328 1215)">
+    <rect class="card" width="288" height="220" rx="14"/>
+    <use href="#model-icon" x="24" y="22" width="32" height="32" class="icon" color="#7551a8"/>
+    <text x="24" y="91" class="node-title">Generate a response</text>
+    <text x="24" y="126" class="model">gpt-4o-mini</text>
+    <text x="24" y="157" class="body">Temperature: 0.2</text>
+    <rect x="16" y="177" width="256" height="29" rx="6" class="code-bg"/>
+    <text x="28" y="197" class="code">ChatOpenAI</text>
+  </g>
+  <path d="M1325 1325H1303" class="answer-flow"/>
+  <g transform="translate(1012 1215)">
+    <rect class="card" width="288" height="220" rx="14"/>
+    <use href="#parser" x="24" y="22" width="32" height="32" class="icon" color="#7551a8"/>
+    <text x="24" y="91" class="node-title">Parse the response</text>
+    <text x="24" y="126" class="body">Model message → string</text>
+    <text x="24" y="157" class="body">Return the answer text</text>
+    <rect x="16" y="177" width="256" height="29" rx="6" class="code-bg"/>
+    <text x="28" y="197" class="code">StrOutputParser()</text>
+  </g>
+  <path d="M1009 1325H987" class="answer-flow"/>
+  <g transform="translate(696 1215)">
+    <rect width="288" height="220" rx="14" fill="#e7f3ef" stroke="#71ab94" stroke-width="1.5"/>
+    <use href="#answer" x="24" y="22" width="32" height="32" class="icon" color="#32765c"/>
+    <text x="24" y="91" class="node-title">Display the answer</text>
+    <text x="24" y="126" class="body">Streamlit renders the text</text>
+    <text x="24" y="157" class="body">Ask again to reuse the index</text>
+    <rect x="16" y="177" width="256" height="29" rx="6" fill="#d8eae2"/>
+    <text x="28" y="197" class="code">st.write(answer)</text>
+  </g>
+  <path d="M64 1461H1616" stroke="#d4e0ed"/>
+  <text x="64" y="1491" class="small">External calls: YouTube captions · OpenAI document/query embeddings · OpenAI chat completion</text>
+  <text x="1616" y="1491" text-anchor="end" class="small">Code reference: app.py + rag.py</text>
+</svg>
